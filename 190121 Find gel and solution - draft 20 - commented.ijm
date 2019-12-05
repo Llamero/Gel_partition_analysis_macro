@@ -25,7 +25,7 @@ run("Bio-Formats Macro Extensions");
 run("Close All");
 dir = getDirectory("Choose input directory");
 list = getFileList(dir);
-outDir = dir + "Output_draft20/";
+outDir = dir + "Output_draft22_fixedIsstomatchheight/";
 File.makeDirectory(outDir);
 counter = 0;
 newImage("Normalized Ratio Histogram", "32-bit black", nBins, 4, 1); //Create matrix for storing histograms
@@ -212,6 +212,7 @@ function quantifySolnStack(i){
 	// Ali added 181004
 	//create duplicate image and the apply low pass filter to eliminate noise (gaussian blur)
 	run("Duplicate...", "duplicate");
+	rename("Duplicate");
 	run("Gaussian Blur 3D...", "x=1 y=1 z=1");
 
 	zProfileArray_blur = newArray(slices);
@@ -222,9 +223,9 @@ function quantifySolnStack(i){
 		getStatistics(dummy, mean);
 		zProfileArray_blur[a] = mean;
 	}
-	close();
+	close("Duplicate");
 
-	//take absolute derivative of intensity profile
+	//take absolute derivative of blurred intensity profile
 	dzProfileArray_blur = newArray(slices);
 	for(a=1; a<slices; a++){
 		dzProfileArray_blur[a-1] = abs(zProfileArray_blur[a] - zProfileArray_blur[a-1]);
@@ -243,8 +244,6 @@ function quantifySolnStack(i){
 	
 	solnEndsArray = removeTransitions(solnArray, dzPeakArray[0]);
 	//print(zProfileArray_blur[solnEndsArray[0]],zProfileArray_blur[solnEndsArray[1]]);
-
-	gelEnd = getResult("Gel ending slice",row);
 
 	solnStartCoverslip = solnEndsArray[0];
 
@@ -294,18 +293,22 @@ function quantifySolnStack(i){
 	//close("Soln2");
 
 	// Make a substack of just the solution layer at the same height as that used for the solution above the gel from the gel image
-	solnStartGelMatch = solnEndsArray[0]+gelEnd;
+	IsgStart = getResult("Soln above gel starting slice");
+	IgStart = getResult("Gel starting slice");
+	IssStart = IsgStart-IgStart;
+	
+	solnStartGelMatch = solnEndsArray[0]+IssStart;
 	endSolnGel = getResult("Gel Analysis Slices", row) + solnStartGelMatch - 1;
 	//print(solnStartGelMatch, endSolnGel);
-	setResult("Only Soln same height as gel analysis  begin", row, solnStartGelMatch);
-	setResult("Only Soln same height as gel end", row, endSolnGel);
+	setResult("Only Soln same height as soln above gel begin", row, solnStartGelMatch);
+	setResult("Only Soln same height as soln above gel end", row, endSolnGel);
 	selectWindow(i);
 	run("Make Substack...", "  slices=" + solnStartGelMatch + "-" + endSolnGel);
 	selectWindow("Substack (" + solnStartGelMatch + "-" + endSolnGel + ")");
 	rename("SolnControl");
 	run("Median 3D...", "x=" + median + " y=" + median + " z=" + median); //Remove outlier pixels isotropically
 	Stack.getStatistics(dummy, solnMeanGel, dummy, dummy, dummy);
-	setResult("Soln only value at gel height",row,solnMeanGel);
+	setResult("Soln only value at soln above gel height",row,solnMeanGel);
 
 	//Calculate the ratio between the two stacks (= image1/image2)
 	imageCalculator("Divide create 32-bit stack", "SolnControl","SolnCover");
@@ -338,6 +341,7 @@ function quantifyGelStack(i){
 
 	//AS 180923: create duplicate image and the apply low pass filter to eliminate noise (gaussian blur) for finding the region ends
 	run("Duplicate...", "duplicate");
+	rename("Duplicate");
 	run("Gaussian Blur 3D...", "x=1 y=1 z=1");
 	
 	//Measure the Z profile of the gel stack and save to "blurred" array
@@ -348,7 +352,7 @@ function quantifyGelStack(i){
 	}
 
 	//Close the Gaussian blurred image
-	close();
+	close("Duplicate");
 
 	//take absolute derivative of intensity profile
 	dzProfileArray_orig = newArray(slices);
@@ -409,8 +413,8 @@ function quantifyGelStack(i){
 		setResult("Limiting thickness", row, "Gel"); // Report that the gel was the limited thickness
 		setResult("Gel starting slice",row,gelEndsArray[0]);
 		setResult("Gel ending slice",row,gelEndsArray[1]);
-		setResult("Soln starting slice",row,solnEndsArray[0]);
-		setResult("Soln ending slice",row,(solnEndsArray[0] + nGelSlices - 1));
+		setResult("Soln above gel starting slice",row,solnEndsArray[0]);
+		setResult("Soln above gel ending slice",row,(solnEndsArray[0] + nGelSlices - 1));
 	}
 	else{
 		selectWindow(i);
@@ -429,12 +433,12 @@ function quantifyGelStack(i){
 		setResult("Limiting thickness", row, "Solution"); 
 		setResult("Gel starting slice",row,gelEndsArray[0]);
 		setResult("Gel ending slice",row,(gelEndsArray[0] + nSolnSlices - 1));
-		setResult("Soln starting slice",row,solnEndsArray[0]);
-		setResult("Soln ending slice",row,solnEndsArray[1]);
+		setResult("Soln above gel starting slice",row,solnEndsArray[0]);
+		setResult("Soln above gel ending slice",row,solnEndsArray[1]);
 	}
 
 	setResult("Gel value",row,ingelMean);
-	setResult("Soln value",row,insolnMean);
+	setResult("Soln above gel value",row,insolnMean);
 	
 	//Calculate the ratio between the two stacks
 	imageCalculator("Divide create 32-bit stack", "Gel","Soln");	
